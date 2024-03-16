@@ -50,6 +50,7 @@ const choice_page_r = exists('g:table_im#choice_page_r') ? g:table_im#choice_pag
 
 # LICENSE
 
-插件代码使用 [MIT 协议](./LICENSE); 随本仓库分发的码表文件
-[./tables/wubi98-single.txt](./tables/wubi98-single.txt) 使用其原始授权
-(公有领域).
+- 插件代码使用 [MIT 协议](./LICENSE);
+
+- 随本仓库分发的码表文件:
+    - [./tables/wubi98-single.txt](./tables/wubi98-single.txt) 使用其原始授权 (公有领域). <https://github.com/fcitx/fcitx5-table-extra/tree/master/tables>
