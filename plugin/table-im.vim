@@ -220,7 +220,7 @@ def HandleInput(char: string): string
             endif # }}}
             result = HandleInputInternal(ch)
         else
-            const word = table_data->get(input_sequence, {})->get('1', '')
+            const word = table_data->get(input_sequence, {})->get('1', input_sequence)
             CleanInputSequence()
             if ch == "\<Esc>"
                 # 如果是 <Esc>, 则忽略候选字
@@ -300,6 +300,16 @@ def HandleInputInternal(char: string): string
             if has_key(table_data[code], seq)
                 selected = table_data[code][seq]
                 CleanInputSequence()
+            endif
+        endif
+        if !selected
+            # 将输入作为英文处理
+            if char == ' '
+                defer CleanInputSequence()
+                return input_sequence .. ' '
+            else
+                input_sequence ..= char
+                RedrawInputSequence()
             endif
         endif
         return selected
