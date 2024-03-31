@@ -8,13 +8,6 @@ vim9script
 
 # TODO 内置部分可以分发的码表方案 (目前只有 98 五笔)
 #
-# 已知问题:
-# - 当启用 "全码自动上屏" 之后, 输入第5个字母导致前4码上屏时, 会处于
-#   插入模式 (insertmode);
-#   - 这时, `<BS>` / `<C-w>` / `<CR>` 按键会被 vim 的 insertmode 直接解释
-#   (即它们无法用于操作候选);
-#   - 此外, 如果设置 `g:table_im#using_popup` 为 false, 这时不会显示候选.
-#
 # 为什么不...
 # - 异步加载 table? 这样做会增加实现的复杂度.
 #   (考虑加载 table 时输入了选词键这一情况)
@@ -115,6 +108,9 @@ enddef
 
 const ch_empty = '_'
 def RedrawInputSequence()
+    if !!reg_executing()
+        return
+    endif
     const code = input_sequence
     var candidates_to_print = []
     if has_key(table_data, code)
@@ -163,17 +159,13 @@ const handle_char = []
     ->add(ctrl_w)
     ->add(im_toggle)
 
+var enque_char = { state: false, char: '' }
+def EnqueInputForNext(char: string)
+    enque_char.state = true
+    enque_char.char = char
+enddef
+
 def HandleInput(char: string): string
-    return HandleInputImpl(char, true)
-enddef
-
-def EnqueInputForNext(char: string): string
-    return HandleInputImpl(char, false)
-enddef
-
-def HandleInputImpl(char: string, wait: bool): string
-    # wait: 是否等待后续输入; 为 false 时用于全码上屏的后一码.
-
     # popup window ui {{{
     # close completion window when we input.
     if using_popup && pumvisible()
@@ -209,9 +201,6 @@ def HandleInputImpl(char: string, wait: bool): string
 
     input_sequence ..= char
     RedrawInputSequence()
-    if !wait
-        return ''
-    endif
     var result = ''
     while !empty(input_sequence)
         const ch = getcharstr()
@@ -221,8 +210,12 @@ def HandleInputImpl(char: string, wait: bool): string
                 const word = table_data->get(input_sequence, {})->get('1')
                 if !empty(word)
                     CleanInputSequence()
-                    EnqueInputForNext(ch)
-                    return word
+                    if !reg_executing()
+                        EnqueInputForNext(ch)
+                        return word
+                    else
+                        return word .. HandleInput(ch)
+                    endif
                 endif
             endif # }}}
             result = HandleInputInternal(ch)
@@ -383,6 +376,15 @@ augroup table_im
 
         if !reg_executing() && table_data_is_inited
             ShowImState()
+        endif
+    }
+
+    au CursorMovedI * {
+        if !reg_executing()
+            if enque_char.state
+                enque_char.state = false
+                timer_start(0, (_) => HandleInput(enque_char.char)->feedkeys('n'))
+            endif
         endif
     }
 augroup END
