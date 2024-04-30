@@ -108,7 +108,7 @@ enddef
 
 const ch_empty = '_'
 def RedrawInputSequence()
-    if !!reg_executing()
+    if !!state('m')
         return
     endif
     const code = input_sequence
@@ -338,6 +338,10 @@ def KeyBindingUnset()
 enddef
 
 def ShowImState()
+    if !!state('m')
+        return
+    endif
+
     const indicator = im_state ? '中' : 'EN'
 
     if using_popup
@@ -363,9 +367,7 @@ def KeyBindingToggle()
         KeyBindingSet()
     endif
     im_state = !im_state
-    if !reg_executing()
-        ShowImState()
-    endif
+    ShowImState()
 enddef
 
 # magic {{{1
@@ -384,7 +386,7 @@ augroup table_im
             endif
         endif
 
-        if !reg_executing() && table_data_is_inited
+        if table_data_is_inited
             ShowImState()
         endif
     }
