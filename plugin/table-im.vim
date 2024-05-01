@@ -67,6 +67,11 @@ def ReadTable(): dict<dict<string>>
     # result structure:
     # {code: {seq: ch}}
     var result = {}
+    if !table_file->filereadable()
+        # it is unlikely that builtin table file is not readable;
+        # so just assume user have set g:table_im#table_file.
+        throw $'table-im: table file not readable: g:table_im#table_file (resolved to "{table_file}")'
+    endif
     for line in table_file->readfile()
         if match(line, '\v^[a-z]') < 0
             continue
