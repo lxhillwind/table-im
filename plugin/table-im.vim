@@ -83,21 +83,30 @@ def ReadTable(): dict<dict<string>>
         endif
         result[code][seq] = ch
     endfor
-    if auto_commit # {{{
-        for [code, values] in result->items()
-            if code->len() != 4
-                continue
-            endif
-            var idx = 0
-            var values_new = {}
-            for ch in values->keys()->sort('n')->mapnew((_, i) => values[i])
-                idx += 1
-                values_new[idx->string()] = ch
-            endfor
-            result[code] = values_new
-        endfor
-    endif # }}}
     return result
+enddef
+
+var auto_commit_cache = {}
+
+def AutoCommitCheck(code: string)
+    if auto_commit_cache->has_key(code)
+        return
+    endif
+    if code->len() != 4
+        return
+    endif
+    if !has_key(table_data, code)
+        return
+    endif
+    var idx = 0
+    const values = table_data[code]
+    var values_new = {}
+    for ch in values->keys()->sort('n')->mapnew((_, i) => values[i])
+        idx += 1
+        values_new[idx->string()] = ch
+    endfor
+    table_data[code] = values_new
+    auto_commit_cache[code] = true
 enddef
 
 def CleanInputSequence()
@@ -119,6 +128,7 @@ def RedrawInputSequence()
     const code = input_sequence
     var candidates_to_print = []
     if has_key(table_data, code)
+        AutoCommitCheck(code)
         const candidates = table_data[code]
         const max_index = candidates->keys()->mapnew((_, i) => str2nr(i))->max()
         const page_max = ((max_index + 0.0) / choice_num->len())->ceil()->float2nr()
@@ -209,6 +219,7 @@ def HandleInput(char: string): string
     var result = ''
     while !empty(input_sequence)
         const ch = getcharstr()
+        AutoCommitCheck(input_sequence)
         if handle_char->index(ch) >= 0
             if auto_commit && input_sequence->len() == 4 && code_element->index(ch) >= 0
                 # 第5个字符让上一个全码首选上屏 {{{
@@ -244,6 +255,7 @@ def HandleInputInternal(char: string): string
         page_number = 1
         input_sequence ..= char
         if auto_commit && input_sequence->len() == 4
+            AutoCommitCheck(input_sequence)
             # 全码自动上屏 {{{
             if has_key(table_data, input_sequence)
                 const choices = table_data[input_sequence]->values()
@@ -302,6 +314,7 @@ def HandleInputInternal(char: string): string
         const code = input_sequence
         var selected = ''
         if has_key(table_data, code)
+            AutoCommitCheck(code)
             if has_key(table_data[code], seq)
                 selected = table_data[code][seq]
                 CleanInputSequence()
