@@ -63,9 +63,10 @@ var table_data_is_inited = false
 
 # impl {{{1
 
-def ReadTable(): dict<dict<string>>
+def ReadTable(): dict<list<string>>
     # result structure:
-    # {code: {seq: ch}}
+    # {code: [seq: ch]}
+    # seq starts from 1, not 0.
     var result = {}
     if !table_file->filereadable()
         # it is unlikely that builtin table file is not readable;
@@ -77,9 +78,13 @@ def ReadTable(): dict<dict<string>>
             continue
         endif
         const i = line->matchlist('\v^([a-z]+)[,=]([0-9]+)[,=](.*)')
-        const [code, seq, ch] = i[1 : 3]
+        const [code, seq_s, ch] = i[1 : 3]
+        const seq = str2nr(seq_s)
         if !has_key(result, code)
-            result[code] = {}
+            result[code] = ['']
+        endif
+        if seq >= result[code]->len()
+            result[code]->extend(['']->repeat(seq + 1 - result[code]->len()))
         endif
         result[code][seq] = ch
     endfor
@@ -99,13 +104,7 @@ def AutoCommitCheck(code: string)
         return
     endif
     var idx = 0
-    const values = table_data[code]
-    var values_new = {}
-    for ch in values->keys()->sort('n')->mapnew((_, i) => values[i])
-        idx += 1
-        values_new[idx->string()] = ch
-    endfor
-    table_data[code] = values_new
+    table_data[code]->filter((i, item) => i == 0 || !empty(item))
     auto_commit_cache[code] = true
 enddef
 
@@ -130,7 +129,7 @@ def RedrawInputSequence()
     if has_key(table_data, code)
         AutoCommitCheck(code)
         const candidates = table_data[code]
-        const max_index = candidates->keys()->mapnew((_, i) => str2nr(i))->max()
+        const max_index = candidates->len() - 1
         const page_max = ((max_index + 0.0) / choice_num->len())->ceil()->float2nr()
         if page_number > page_max
             page_number = page_max
@@ -139,16 +138,16 @@ def RedrawInputSequence()
         endif
         const in_page_min = (page_number - 1) * choice_num->len() + 1
         const in_page_max = page_number * choice_num->len()
-        for i in range(1, max_index)->mapnew((_, i) => string(i))
-            if i->str2nr() > in_page_max || i->str2nr() < in_page_min
+        for i in range(1, max_index)
+            if i > in_page_max || i < in_page_min
                 continue
             endif
-            candidates_to_print->add({seq: i, ch: candidates->get(i, ch_empty)})
+            candidates_to_print->add({seq: i, ch: candidates->get(i) ?? ch_empty})
         endfor
     endif
     var to_print = code
     for i in candidates_to_print
-        var new_seq = i.seq->str2nr() % choice_num->len()
+        var new_seq = i.seq % choice_num->len()
         if new_seq == 0
             new_seq = choice_num->len()
         endif
@@ -223,7 +222,7 @@ def HandleInput(char: string): string
         if handle_char->index(ch) >= 0
             if auto_commit && input_sequence->len() == 4 && code_element->index(ch) >= 0
                 # 第5个字符让上一个全码首选上屏 {{{
-                const word = table_data->get(input_sequence, {})->get('1')
+                const word = table_data->get(input_sequence, {})->get(1)
                 if !empty(word)
                     CleanInputSequence()
                     if !reg_executing()
@@ -236,7 +235,7 @@ def HandleInput(char: string): string
             endif # }}}
             result = HandleInputInternal(ch)
         else
-            const word = table_data->get(input_sequence, {})->get('1', input_sequence)
+            const word = table_data->get(input_sequence, {})->get(1, input_sequence)
             CleanInputSequence()
             if ch == "\<Esc>"
                 # 如果是 <Esc>, 则忽略候选字
@@ -258,10 +257,10 @@ def HandleInputInternal(char: string): string
             AutoCommitCheck(input_sequence)
             # 全码自动上屏 {{{
             if has_key(table_data, input_sequence)
-                const choices = table_data[input_sequence]->values()
-                if choices->len() == 1
+                const choices = table_data[input_sequence]
+                if choices->len() == 2
                     defer CleanInputSequence()
-                    return choices[0]
+                    return choices[1]
                 endif
             endif
         endif # }}}
@@ -300,22 +299,22 @@ def HandleInputInternal(char: string): string
             return char
         endif
         # select candidate
-        var seq = '1'
+        var seq = 1
         if choice_first->index(char) >= 0
-            seq = '1'
+            seq = 1
         elseif choice_second->index(char) >= 0
-            seq = '2'
+            seq = 2
         else
-            seq = char
+            seq = char->str2nr()
         endif
         seq = (
-            seq->str2nr() + (page_number - 1) * choice_num->len()
-        )->string()
+            seq + (page_number - 1) * choice_num->len()
+        )
         const code = input_sequence
         var selected = ''
         if has_key(table_data, code)
             AutoCommitCheck(code)
-            if has_key(table_data[code], seq)
+            if table_data[code]->len() > seq
                 selected = table_data[code][seq]
                 CleanInputSequence()
             endif
