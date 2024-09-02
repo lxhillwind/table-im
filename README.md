@@ -25,8 +25,10 @@ const im_toggle = exists('g:table_im#im_toggle') ? g:table_im#im_toggle : "\<C-\
 const table_file = exists('g:table_im#table_file') ? g:table_im#table_file : (
     fnamemodify(expand('<sfile>'), ':p:h:h') .. '/' .. 'tables/wubi98-single.ini'
 )
+# 辅助码表文件的绝对路径 (使用 `#` 引导其中字词的编码): 默认为空.
+const table_secnod = exists('g:table_im#table_second') ? g:table_im#table_second : ''
 # 键码元素范围
-const code_element = exists('g:table_im#code_element') ? g:table_im#code_element : 'abcdefghijklmnopqrstuvwxyz'->split('\zs')
+const code_element = exists('g:table_im#code_element') ? g:table_im#code_element : 'abcdefghijklmnopqrstuvwxyz#'->split('\zs')
 # 是否开启全码自动上屏 (对于 四码定长 的方案, 建议设置为 true)
 const auto_commit = exists('g:table_im#auto_commit') ? g:table_im#auto_commit : false
 

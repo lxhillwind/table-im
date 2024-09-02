@@ -26,8 +26,10 @@ const im_toggle = exists('g:table_im#im_toggle') ? g:table_im#im_toggle : "\<C-\
 const table_file = exists('g:table_im#table_file') ? g:table_im#table_file : (
     fnamemodify(expand('<sfile>'), ':p:h:h') .. '/' .. 'tables/wubi98-single.ini'
 )
+# 辅助码表文件的绝对路径 (使用 `#` 引导其中字词的编码): 默认为空.
+const table_secnod = exists('g:table_im#table_second') ? g:table_im#table_second : ''
 # 键码元素范围
-const code_element = exists('g:table_im#code_element') ? g:table_im#code_element : 'abcdefghijklmnopqrstuvwxyz'->split('\zs')
+const code_element = exists('g:table_im#code_element') ? g:table_im#code_element : 'abcdefghijklmnopqrstuvwxyz#'->split('\zs')
 # 是否开启全码自动上屏 (对于 四码定长 的方案, 建议设置为 true)
 const auto_commit = exists('g:table_im#auto_commit') ? g:table_im#auto_commit : false
 
@@ -73,20 +75,33 @@ def ReadTable(): dict<list<string>>
         # so just assume user have set g:table_im#table_file.
         throw $'table-im: table file not readable: g:table_im#table_file (resolved to "{table_file}")'
     endif
-    for line in table_file->readfile()
-        if match(line, '\v^[a-z]') < 0
-            continue
+    var files_to_handle = [table_file]
+    if !empty(table_secnod) && table_secnod->filereadable()
+        files_to_handle->add(table_secnod)
+    endif
+    var is_second = false
+    var idx = 0
+    for fname in files_to_handle
+        if idx != 0
+            is_second = true
         endif
-        const i = line->matchlist('\v^([a-z]+)[,=]([0-9]+)[,=](.*)')
-        const [code, seq_s, ch] = i[1 : 3]
-        const seq = str2nr(seq_s)
-        if !has_key(result, code)
-            result[code] = ['']
-        endif
-        if seq >= result[code]->len()
-            result[code]->extend(['']->repeat(seq + 1 - result[code]->len()))
-        endif
-        result[code][seq] = ch
+        idx += 1
+        for line in fname->readfile()
+            const i = line->matchlist('\v^([a-z]+)[,=]([0-9]+)[,=](.*)')
+            if len(i) <= 4
+                continue
+            endif
+            const [code_, seq_s, ch] = i[1 : 3]
+            const code = is_second ? $'#{code_}' : code_
+            const seq = str2nr(seq_s)
+            if !has_key(result, code)
+                result[code] = ['']
+            endif
+            if seq >= result[code]->len()
+                result[code]->extend(['']->repeat(seq + 1 - result[code]->len()))
+            endif
+            result[code][seq] = ch
+        endfor
     endfor
     return result
 enddef
@@ -103,7 +118,6 @@ def AutoCommitCheck(code: string)
     if !has_key(table_data, code)
         return
     endif
-    var idx = 0
     table_data[code]->filter((i, item) => i == 0 || !empty(item))
     auto_commit_cache[code] = true
 enddef
@@ -221,6 +235,7 @@ def HandleInput(char: string): string
         AutoCommitCheck(input_sequence)
         if handle_char->index(ch) >= 0
             if auto_commit && input_sequence->len() == 4 && code_element->index(ch) >= 0
+                    && input_sequence !~ '^#'
                 # 第5个字符让上一个全码首选上屏 {{{
                 const word = table_data->get(input_sequence, {})->get(1)
                 if !empty(word)
@@ -254,6 +269,7 @@ def HandleInputInternal(char: string): string
         page_number = 1
         input_sequence ..= char
         if auto_commit && input_sequence->len() == 4
+                && input_sequence !~ '^#'
             AutoCommitCheck(input_sequence)
             # 全码自动上屏 {{{
             if has_key(table_data, input_sequence)
